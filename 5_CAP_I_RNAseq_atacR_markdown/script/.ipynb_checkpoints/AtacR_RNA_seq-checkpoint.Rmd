@@ -1,0 +1,354 @@
+---
+title: "AtacR"
+author: "Toshiyuki Sakai"
+date: "9/5/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.height=10, fig.width=10)
+```
+
+# AtacR 
+
+### Normalication
+Using GoF(Goodness of fit)
+
+### Differential expression
+Mutants_Treatments vs Wildtype_Untreated
+
+## Read Dataset
+Use AtacR package.<br>
+Set gene regions as windows.
+
+```{r}
+library(atacr)
+library(magrittr)
+library(UpSetR)
+library(SummarizedExperiment)
+
+# When use this script first time, we use make_counts method in AtacR package.
+# After second time, we can use .rds files.
+# test_AtacR_desc_final.csv, gene_symbol_region.gff made by XXXXX.py
+
+if (file.exists("../data/rna_seq_count_data.rds") ){
+    data <- readRDS("../data/rna_seq_count_data.rds")
+} else {
+    my_params = make_params(
+        paired_map = FALSE, 
+        minq = 30, 
+        dedup = TRUE
+      )
+
+    data <-  make_counts('../data/gene_symbol_region.gff',
+            '../data/AtacR_desc.csv',
+            is_rnaseq = TRUE,
+            filter_params = my_params
+          )
+}
+```
+
+### Save all dataset (.rds)
+### Save read counts data (.csv)
+#### Fix some data
+read counts in AT1G65483_wt_un_r1~3 = 0. <br>
+We modified AT1G65483_wt_un_r1 = 1 to calculate differential expression.
+
+```{r}
+write.csv(assays(data$bait_windows)[[1]], file="../outputs/rna_seq_count_in_mRNA.csv")
+saveRDS(data, file="../outputs/rna_seq_count_data.rds")
+assays(data$bait_windows)[[1]]["AT1G65483","wt_un_r1"] <- 1
+```
+
+## Summary
+
+```{r}
+summary(data)
+```
+
+## Coverage_summary
+It shows warning message because we mistook to treat AT4G28410 → AT4G28420
+
+```{r}
+coverage_summary(data)
+```
+
+## Correlation between replicate plot
+
+```{r, fig.height=20, fig.width=20}
+sample_correlation_plot(data)
+```
+
+## detect control genes based on Goodness of fit
+
+```{r}
+auto_controls <- find_controls_by_GoF(data, which = "bait_windows")
+auto_controls
+```
+### Control genes (Not ERGs)
+```{r}
+pre_hoc_controls <- strsplit("AT1G07160_AP2C2,AT1G07920,AT1G32640_MYC2,AT1G51920,AT1G59860_HSP17.6A-CI,AT1G77120_ADH1,AT2G17740_VLG,AT2G19190_FRK1,AT3G27850_RPL12-C,AT3G45140_LOX2,AT4G01250_WRKY22,AT4G05320_UBQ10,AT4G18960_AG,AT4G28410_RSA1,AT5G03840_TFL1,AT5G09810_ACT7,AT5G44420_PDF1.2A", ",")[[1]]
+pre_hoc_controls
+```
+
+### Control genes (Not ERGs & detected by GoF)
+```{r}
+intersect(auto_controls, pre_hoc_controls)
+```
+
+### Plot Goodness of fit
+```{r, fig.height=7.5, fig.width=7.5}
+plot_GoF(data, controls = auto_controls)
+
+plot_GoF(data, controls = pre_hoc_controls)
+```
+
+## Normalization
+First normalization ... based on GoF.
+```{r}
+norm_factors <- get_GoF_factors(data)
+data$normalised_data <- scale_factor_normalise(data, scaling_factors = norm_factors) 
+plot_counts(data, which = "normalised_data")
+```
+Second normalization ... basde on length of genes.
+```{r}
+data$normalised_data <- normalise_by_window_width(data, which = "normalised_data")
+plot_counts(data, which = "normalised_data")
+```
+### Save normalized read counts
+```{r}
+write.csv(assays(data$normalised_data)[[1]], file="../outputs/rna_seq_normalized_count_in_mRNA.csv")
+```
+
+## Estimate BayesFactor and mark significantly different genes for many experiments
+(from here, we remove genomic DNA dataset)
+```{r}
+diff_expression <- estimate_bayes_factor_multiclass(data, "wt_un", which = "normalised_data", factor = 1.5)
+diff_expression <- diff_expression[diff_expression$a != "gdna", ]
+diff_expression %>% 
+    dplyr::filter(is_sig == TRUE) %>%
+        dplyr::distinct(a)
+```
+### Save differential expression result
+```{r}
+write.csv(diff_expression, file = "../outputs/diff_expression_RNA_seq.csv", row.names=FALSE)
+```
+
+## UpSetR (remove?)
+```{r, fig.height=20, fig.width=20}
+make_UpSetR <- function(df) {
+  log2_fc <- direction <- a <- NULL
+  r <- df %>%
+    dplyr::mutate(
+      direction = ifelse(log2_fold_change > 0, "up", "down"),
+      category = paste0(direction, "_", a)
+    )
+  r <- r %>% split(r$category) %>%
+    lapply(function(x)
+      as.vector(dplyr::select(x, window)$window))
+  return(r)
+}
+
+
+diff_expression %>% 
+  dplyr::filter(is_sig == TRUE) %>%
+  make_UpSetR() %>%
+  fromList() %>%
+  upset(
+    nsets = 56, 
+    nintersects = NA,
+    order.by = c("degree", "freq"),
+    main.bar.color = "steelblue",
+    sets.bar.color = "aquamarine",
+    text.scale = 2,
+    line.size = 0,
+    mb.ratio = c(0.3, 0.7)
+    )
+```
+
+## Heatmap of differential expression analysis
+We remove AT4G28410 in this process.
+
+### All genes & all treatments
+```{r}
+
+# make color list for each genes
+ID_color_list <- read.csv("../data/ID_color_list.csv")
+ID_color_list["color"] <- lapply(ID_color_list["color"], gsub, pattern="blue", replacement=rgb(86/255, 180/255, 233/255))
+ID_color_list["color"] <- lapply(ID_color_list["color"], gsub, pattern="red", replacement=rgb(230/255, 159/255, 0))
+rownames(ID_color_list) <- ID_color_list$ID
+
+# make heatmap contains 51 genes and all mutants/treatment.
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+  log2_matrix[log2_matrix == -Inf] <- 0
+  log2_matrix<-na.omit(log2_matrix)
+  new_color_list <- ID_color_list$color[-41]
+  heatmap <- heatmap3::heatmap3(log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+### Save log matrix values
+```{r}
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+write.csv(log2_matrix, file="../outputs/log_matrix_diff_expression.csv")
+```
+
+### Print gene ids in each cluster.
+
+```{r}
+# cluster1
+print(rownames(log2_matrix)[heatmap$rowInd][26:51])
+# cluster2
+print(rownames(log2_matrix)[heatmap$rowInd][14:25])
+# cluster3
+print(rownames(log2_matrix)[heatmap$rowInd][1:13])
+```
+
+
+## each 1 treatment vs wt¶
+#### all 51 genes, (vs "eds1", "gh", "peds", "r1ab")
+```{r, fig.height=9, fig.width=9}
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+  log2_matrix[log2_matrix == -Inf] <- 0
+
+treatments <- c("eds1", "gh", "peds", "r1ab")
+
+for (treat in treatments) {
+    pickup <- c(paste(treat, "_a2", sep=""),paste(treat, "_a4", sep=""),paste(treat, "_kv", sep=""),"wt_a2","wt_a4","wt_kv")
+    pickup_log2_matrix <- log2_matrix[,pickup]
+
+    pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+    new_color_list <- ID_color_list$color[-41]
+    heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+}
+```
+
+### Pick up specific genes or pick up specific treatment to be clear (vs "myc234", "sid2", "tplr14")
+### vs myc234
+#### pick up Top 10 genes (myc234_a4 vs wt_a4)
+
+```{r, fig.height=8, fig.width=8}
+treat <- "myc234"
+
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+treat_vs_wt_a4 <- sort(log2_matrix[,paste(treat, "_a4", sep="")] / log2_matrix[,"wt_a4"])
+
+pickup <- c(paste(treat, "_a2", sep=""),paste(treat, "_a4", sep=""),paste(treat, "_kv", sep=""),"wt_a2","wt_a4","wt_kv")
+pickup_log2_matrix <- log2_matrix[,pickup]
+pickup_log2_matrix <- pickup_log2_matrix[names(treat_vs_wt_a4)[c(1:10,42:51)],]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[names(treat_vs_wt_a4)[c(1:10,42:51)], "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+### vs sid2
+#### pick up Top 12 genes (sid2_a4 vs wt_a4)
+
+```{r, fig.height=8, fig.width=8}
+treat <- "sid2"
+
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+treat_vs_wt_a4 <- sort(log2_matrix[,paste(treat, "_a4", sep="")] / log2_matrix[,"wt_a4"])
+
+pickup <- c(paste(treat, "_a2", sep=""),paste(treat, "_a4", sep=""),paste(treat, "_kv", sep=""),"wt_a2","wt_a4","wt_kv")
+pickup_log2_matrix <- log2_matrix[,pickup]
+pickup_log2_matrix <- pickup_log2_matrix[names(treat_vs_wt_a4)[c(1:12,40:51)],]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[names(treat_vs_wt_a4)[c(1:12,40:51)], "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+# vs tplr14 series
+#### pick up only kv, a4
+
+```{r, fig.height=9, fig.width=9}
+treat <- "tplr14"
+
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+treat_vs_wt_a4 <- sort(log2_matrix[,paste(treat, "_a4", sep="")] / log2_matrix[,"wt_a4"])
+
+pickup <- c(paste(treat, "_a4", sep=""),paste(treat, "_kv", sep=""),"wt_kv","wt_a4")
+pickup_log2_matrix <- log2_matrix[,pickup]
+pickup_log2_matrix <- pickup_log2_matrix[names(treat_vs_wt_a4),]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[-41, "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+#### pick up only kv, a2
+
+```{r, fig.height=9, fig.width=9}
+treat <- "tplr14"
+
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+treat_vs_wt_a4 <- sort(log2_matrix[,paste(treat, "_a2", sep="")] / log2_matrix[,"wt_a2"])
+
+pickup <- c(paste(treat, "_a2", sep=""),paste(treat, "_kv", sep=""),"wt_kv","wt_a2")
+pickup_log2_matrix <- log2_matrix[,pickup]
+pickup_log2_matrix <- pickup_log2_matrix[names(treat_vs_wt_a4),]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[-41, "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+#### pick up only kv, a4 & pick up top 20 genes
+```{r, fig.height=7, fig.width=7}
+treat <- "tplr14"
+
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+treat_vs_wt_a4 <- sort(log2_matrix[,paste(treat, "_a4", sep="")] / log2_matrix[,"wt_a4"])
+
+pickup <- c(paste(treat, "_a4", sep=""),paste(treat, "_kv", sep=""),"wt_kv","wt_a4")
+pickup_log2_matrix <- log2_matrix[,pickup]
+pickup_log2_matrix <- pickup_log2_matrix[names(treat_vs_wt_a4)[c(1:20,32:51)],]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[names(treat_vs_wt_a4)[c(1:20,32:51)], "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+#### pick up only kv, a2 & pick up top 20 genes
+```{r, fig.height=7, fig.width=7}
+treat <- "tplr14"
+
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+treat_vs_wt_a4 <- sort(log2_matrix[,paste(treat, "_a2", sep="")] / log2_matrix[,"wt_a2"])
+
+pickup <- c(paste(treat, "_a2", sep=""),paste(treat, "_kv", sep=""),"wt_kv","wt_a2")
+pickup_log2_matrix <- log2_matrix[,pickup]
+pickup_log2_matrix <- pickup_log2_matrix[names(treat_vs_wt_a4)[c(1:20,32:51)],]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[names(treat_vs_wt_a4)[c(1:20,32:51)], "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+### check similarity between tplr14 and myc234
+```{r, fig.height=9, fig.width=9}
+log2_matrix <- diff_expression %>% 
+  reshape2::acast( window ~ a, value.var = "log2_fold_change")
+  log2_matrix[log2_matrix == -Inf] <- 0
+treat1 <- "tplr14"
+treat2 <- "myc234"
+pickup <- c(paste(treat1, "_a2", sep=""),paste(treat1, "_a4", sep=""),paste(treat1, "_kv", sep=""),paste(treat2, "_a2", sep=""),paste(treat2, "_a4", sep=""),paste(treat2, "_kv", sep=""),"wt_a2","wt_a4","wt_kv")
+pickup_log2_matrix <- log2_matrix[,pickup]
+
+pickup_log2_matrix<-na.omit(pickup_log2_matrix)
+new_color_list <- ID_color_list[-41, "color"]
+heatmap <- heatmap3::heatmap3(pickup_log2_matrix, cexRow=0.75, margin=c(12, 12), RowAxisColors=1, RowSideColors=new_color_list)
+```
+
+

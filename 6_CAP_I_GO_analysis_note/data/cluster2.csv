@@ -1,0 +1,5 @@
+source,term_name,term_id,adjusted_p_value,negative_log10_of_adjusted_p_value,term_size,query_size,intersection_size,effective_domain_size,intersections
+KEGG,MAPK signaling pathway - plant,KEGG:04016,0.004089658,2.388312992,134,5,3,4851,"AT2G19190,AT4G01250,AT3G26830"
+KEGG,Plant-pathogen interaction,KEGG:04626,0.008295786,2.081142481,170,5,3,4851,"AT2G19190,AT4G01250,AT5G42380"
+GO:BP,response to reactive oxygen species,GO:0000302,0.045346291,1.343458232,184,12,3,22991,"AT4G12720,AT1G59860,AT5G42380"
+GO:MF,dihydrocamalexic acid decarboxylase activity,GO:0010298,0.049939997,1.301551487,1,10,1,20815,AT3G26830

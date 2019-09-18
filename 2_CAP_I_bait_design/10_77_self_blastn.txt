@@ -1,0 +1,60 @@
+BLASTN 2.2.29+
+
+
+Reference: Stephen F. Altschul, Thomas L. Madden, Alejandro A.
+Schaffer, Jinghui Zhang, Zheng Zhang, Webb Miller, and David J.
+Lipman (1997), "Gapped BLAST and PSI-BLAST: a new generation of
+protein database search programs", Nucleic Acids Res. 25:3389-3402.
+
+
+
+Database: 10_77.fa
+           1 sequences; 120 total letters
+
+
+
+Query= AT1G74710_77
+
+Length=120
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+  AT1G74710_77                                                          217   4e-62
+
+
+> AT1G74710_77
+Length=120
+
+ Score =   217 bits (240),  Expect = 4e-62
+ Identities = 120/120 (100%), Gaps = 0/120 (0%)
+ Strand=Plus/Plus
+
+Query  1    GAAATTAAGATTTCATTAGTACtaaaaacatgtaaataaaataaagctttaaagaggaat  60
+            ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+Sbjct  1    GAAATTAAGATTTCATTAGTACTAAAAACATGTAAATAAAATAAAGCTTTAAAGAGGAAT  60
+
+Query  61   atattcaaataaaaaaagcaagacctcgaaaaaaaaaCTTTCTATTATCTCTCTTCCGCG  120
+            ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+Sbjct  61   ATATTCAAATAAAAAAAGCAAGACCTCGAAAAAAAAACTTTCTATTATCTCTCTTCCGCG  120
+
+
+
+Lambda      K        H
+   0.634    0.408    0.912 
+
+Gapped
+Lambda      K        H
+   0.625    0.410    0.780 
+
+Effective search space used: 12544
+
+
+  Database: 10_77.fa
+    Posted date:  May 21, 2015  5:02 PM
+  Number of letters in database: 120
+  Number of sequences in database:  1
+
+
+
+Matrix: blastn matrix 2 -3
+Gap Penalties: Existence: 5, Extension: 2

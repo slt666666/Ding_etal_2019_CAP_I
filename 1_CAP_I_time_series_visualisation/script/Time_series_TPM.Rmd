@@ -1,0 +1,67 @@
+---
+title: "Time_Series_RNA_seq"
+author: "Toshiyuki Sakai"
+date: "9/5/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.height=15, fig.width=15)
+```
+
+## Time series TPM valuses
+
+### Read dataset
+We used mean values of replicates.
+```{r}
+library(heatmap3)
+
+MyData <- read.csv(file="../data/extracted_original_TPM_mean_values.csv", header=TRUE, sep=",")
+locus <- MyData$Locus
+rownames(MyData) <- locus
+```
+
+## Heatmap
+```{r}
+MyData_for_heatmap <- MyData[,2:10]
+
+# make color list of each genes. control = blue, ERGs = orange.
+ID_color_list <- read.csv("../data/ID_color_list.csv")
+ID_color_list["color"] <- lapply(ID_color_list["color"], gsub, pattern="blue", replacement=rgb(86/255, 180/255, 233/255))
+ID_color_list["color"] <- lapply(ID_color_list["color"], gsub, pattern="red", replacement=rgb(230/255, 159/255, 0))
+color_list <- ID_color_list$color
+
+# to make heatmap, to avoid std = 0, we add 10e-16 to first column.
+MyData_for_heatmap[,1] <- MyData_for_heatmap[,1] + 0.0000000000000001
+
+# make heatmap
+map_data <- heatmap3::heatmap3(MyData_for_heatmap, Colv=NA, margin=c(20, 20), RowAxisColors=1, RowSideColors=color_list)
+
+# extract gene ids in first cluster and second cluster.
+control_reaction_gene <- locus[map_data$rowInd][1:15]
+target_reaction_gene <- locus[map_data$rowInd][16:length(map_data$rowInd)]
+```
+
+### to make linear plot, save each cluster gene dataset.
+```{r}
+origin_z_score <- MyData[,2:10]
+
+row_std <- apply(origin_z_score, 1, sd, na.rm = TRUE)
+origin_z_score <- origin_z_score - rowMeans(origin_z_score)
+origin_z_score <- origin_z_score / row_std
+
+### Pop2
+z_score <- origin_z_score[,1:5]
+control_z_score <- z_score[control_reaction_gene,]
+target_z_score <- z_score[target_reaction_gene,]
+write.csv(target_z_score, file="../data/target_z_score_Pop2.csv")
+write.csv(control_z_score, file="../data/control_z_score_Pop2.csv")
+
+### C321A
+z_score <- origin_z_score[,c(1,6,7,8,9)]
+control_z_score <- z_score[control_reaction_gene,]
+target_z_score <- z_score[target_reaction_gene,]
+write.csv(target_z_score, file="../data/target_z_score_C321A.csv")
+write.csv(control_z_score, file="../data/control_z_score_C321A.csv")
+```
