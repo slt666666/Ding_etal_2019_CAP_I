@@ -5,15 +5,19 @@ Biorxiv: [CAP-I](https://www.google.com)
 ## Repository structure
 Each folder contains raw datasets, scripts, outputs.
 
-#### 1_CAP_I_time_series_visualisation
-* Figure S1A/B, S3C
-* Table S2
+### 1_CAP_I_time_series_visualisation
+Related Figures & Tables
+
+* ##### Figure S1A/B, S3C
+* ##### Table S2
+
+Figure S1 Time-series expression of CAP-I genes under different conditions of immune activation.<br>
+Table S2 Time-series_Expression_of_CAP-I_genes
 
 #### 2_CAP_I_bait_design
 
-#### 3_CAP_I_bait_visualisation
-* Figure 1A, S2B
-* Table S1
+#### 3_CAP_I_validation
+* Figure 1B, S2B
 
 #### 5_CAP_I_RNAseq_atacR_markdown
 * Figure 2A, 3A, 4B/C/D, S3B, S4A/B/C/D/E
