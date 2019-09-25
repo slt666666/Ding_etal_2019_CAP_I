@@ -1,6 +1,6 @@
 # Ding et al
 
-Biorxiv: [CAP-I](https://www.google.com)
+Biorxiv: [CAP-I](https://www.biorxiv.org/content/10.1101/775973v1)
 
 ## Repository structure
 Each folder contains raw datasets, scripts, outputs.
